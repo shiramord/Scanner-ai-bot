@@ -65,17 +65,20 @@ async function searchAliExpressProducts(keyword) {
       }
     );
 
+    console.log('AliExpress full response:', JSON.stringify(response.data, null, 2));
+
     const result =
       response.data?.aliexpress_affiliate_product_query_response?.resp_result;
 
     if (result?.resp_code === 200) {
       return result.result.products.product || [];
     } else {
-      console.error('AliExpress error:', result);
+      console.error('AliExpress error full response:', JSON.stringify(response.data, null, 2));
       return [];
     }
   } catch (err) {
     console.error('Request failed:', err.message);
+    console.error('Full error:', err.response?.data || err);
     return [];
   }
 }
@@ -109,47 +112,4 @@ bot.on('message', async (msg) => {
     (text.includes('מחפש') ||
       text.includes('חפש') ||
       text.includes('חיפוש') ||
-      text.includes('מצא') ||
-      text.includes('רוצה'))
-  ) {
-    // Extract keyword by removing trigger words
-    const keyword = text
-      .replace(/מחפש|חפש|חיפוש|מצא|רוצה/g, '')
-      .trim();
-
-    if (!keyword) {
-      bot.sendMessage(chatId, '❓ מה תרצה לחפש? לדוגמה: *חפש אוזניות סמסונג*', {
-        parse_mode: 'Markdown',
-      });
-      return;
-    }
-
-    // Immediate response
-    await bot.sendMessage(chatId, `🔍 מחפש לך *${keyword}*...`, {
-      parse_mode: 'Markdown',
-    });
-
-    // Call AliExpress API
-    const products = await searchAliExpressProducts(keyword);
-
-    if (!products.length) {
-      bot.sendMessage(chatId, '😕 לא מצאתי תוצאות. נסה מילות חיפוש אחרות.');
-      return;
-    }
-
-    // Build message
-    const header = `🛍️ *מצאתי ${products.length} מוצרים עבור "${keyword}":*\n\n`;
-    const body = products
-      .slice(0, 4)
-      .map((p, i) => formatProduct(p, i + 1))
-      .join('\n─────────────────\n\n');
-    const footer = '\n\n✅ _כל הקישורים הם קישורי שותפים_';
-
-    bot.sendMessage(chatId, header + body + footer, {
-      parse_mode: 'Markdown',
-      disable_web_page_preview: false,
-    });
-  }
-});
-
-console.log('🤖 Bot is running...');
+      
