@@ -26,7 +26,7 @@ async function searchAliExpressProducts(keyword) {
   const params = {
     method: 'aliexpress.affiliate.product.query',
     app_key: APP_KEY,
-    sign_method: 'md5',
+    sign_method: 'sha256',
     timestamp: timestamp,
     format: 'json',
     v: '2.0',
