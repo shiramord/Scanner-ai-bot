@@ -7,11 +7,13 @@ const token = process.env.BOT_TOKEN;
 const APP_KEY = process.env.ALI_APP_KEY;
 const APP_SECRET = process.env.ALI_APP_SECRET;
 const TRACKING_ID = process.env.ALI_TRACKING_ID || 'default';
-const API_URL = 'http://gw.api.taobao.com/router/rest';
+
+// ✅ NEW CORRECT ENDPOINT
+const API_URL = 'https://api-sg.aliexpress.com/sync';
 
 const bot = new TelegramBot(token, { polling: true });
 
-// ─── SIGN FUNCTION (SHA256) ──────────────────────────────
+// ─── SIGN FUNCTION ───────────────────────────────────────
 function signRequest(params) {
   const sorted = Object.keys(params).sort().reduce((acc, key) => {
     acc[key] = params[key];
@@ -19,7 +21,7 @@ function signRequest(params) {
   }, {});
   const str = Object.keys(sorted).map(key => `${key}${sorted[key]}`).join('');
   const toHash = `${APP_SECRET}${str}${APP_SECRET}`;
-  return crypto.createHmac('sha256', APP_SECRET).update(toHash, 'utf8').digest('hex').toUpperCase();
+  return crypto.createHash('md5').update(toHash, 'utf8').digest('hex').toUpperCase();
 }
 
 async function searchAliExpressProducts(keyword) {
@@ -27,7 +29,7 @@ async function searchAliExpressProducts(keyword) {
   const params = {
     method: 'aliexpress.affiliate.product.query',
     app_key: APP_KEY,
-    sign_method: 'sha256',
+    sign_method: 'md5',
     timestamp: timestamp,
     format: 'json',
     v: '2.0',
@@ -40,6 +42,7 @@ async function searchAliExpressProducts(keyword) {
     ship_to_country: 'IL',
   };
   params.sign = signRequest(params);
+
   try {
     const response = await axios.post(
       API_URL,
