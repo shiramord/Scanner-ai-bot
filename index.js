@@ -12,31 +12,33 @@ const API_URL = 'https://api-sg.aliexpress.com/sync';
 
 const bot = new TelegramBot(token, { polling: true });
 
-// ─── SIGN FUNCTION (CORRECT FOR api-sg.aliexpress.com) ──
+// ─── SIGN FUNCTION ───────────────────────────────────────
 function signRequest(params) {
-  const sortedParams = Object.keys(params).sort().reduce((acc, key) => {
-    acc[key] = params[key];
-    return acc;
-  }, {});
+  // Step 1: Sort keys alphabetically
+  const sortedKeys = Object.keys(params).sort();
 
-  const sortedParamsString = Object.entries(sortedParams)
-    .map(([key, value]) => `${key}${value}`)
-    .join('');
+  // Step 2: Concatenate key+value (no separators, no = or &)
+  const str = sortedKeys.map(key => `${key}${params[key]}`).join('');
 
-  return crypto.createHmac('sha256', APP_SECRET)
-    .update(sortedParamsString)
-    .digest('hex')
-    .toUpperCase();
+  // Step 3: Wrap with secret on both sides
+  const toSign = `${APP_SECRET}${str}${APP_SECRET}`;
+
+  // Step 4: MD5 hash → uppercase
+  return crypto.createHash('md5').update(toSign, 'utf8').digest('hex').toUpperCase();
 }
 
 // ─── ALIEXPRESS SEARCH ───────────────────────────────────
 async function searchAliExpressProducts(keyword) {
-  const timestamp = new Date().getTime();
+  
+  // ✅ Unix timestamp in SECONDS (not ms, not formatted string)
+  const timestamp = Math.floor(Date.now() / 1000);
+
   const params = {
     method: 'aliexpress.affiliate.product.query',
     app_key: APP_KEY,
-    sign_method: 'sha256',
-    timestamp: timestamp,
+    sign_method: 'md5',
+    timestamp: String(timestamp),
+    format: 'json',
     v: '2.0',
     keywords: keyword,
     page_size: '4',
@@ -46,10 +48,15 @@ async function searchAliExpressProducts(keyword) {
     target_language: 'EN',
     ship_to_country: 'IL',
   };
+
   params.sign = signRequest(params);
 
   try {
-    const response = await axios.get(API_URL, { params });
+    const response = await axios.post(
+      API_URL,
+      new URLSearchParams(params).toString(),
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8' } }
+    );
     console.log('AliExpress full response:', JSON.stringify(response.data, null, 2));
     const result = response.data?.aliexpress_affiliate_product_query_response?.resp_result;
     if (result?.resp_code === 200) {
