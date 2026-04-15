@@ -12,26 +12,31 @@ const API_URL = 'https://api-sg.aliexpress.com/sync';
 
 const bot = new TelegramBot(token, { polling: true });
 
-// ─── SIGN FUNCTION ───────────────────────────────────────
+// ─── SIGN FUNCTION (CORRECT FOR api-sg.aliexpress.com) ──
 function signRequest(params) {
-  const sorted = Object.keys(params).sort();
-  const str = sorted.map(key => `${key}${params[key]}`).join('');
-  const toHash = APP_SECRET + str + APP_SECRET;
+  const sortedParams = Object.keys(params).sort().reduce((acc, key) => {
+    acc[key] = params[key];
+    return acc;
+  }, {});
+
+  const sortedParamsString = Object.entries(sortedParams)
+    .map(([key, value]) => `${key}${value}`)
+    .join('');
+
   return crypto.createHmac('sha256', APP_SECRET)
-    .update(toHash)
+    .update(sortedParamsString)
     .digest('hex')
     .toUpperCase();
 }
 
 // ─── ALIEXPRESS SEARCH ───────────────────────────────────
 async function searchAliExpressProducts(keyword) {
-  const timestamp = new Date().toISOString().replace('T', ' ').replace(/\..+/, '');
+  const timestamp = new Date().getTime();
   const params = {
     method: 'aliexpress.affiliate.product.query',
     app_key: APP_KEY,
     sign_method: 'sha256',
     timestamp: timestamp,
-    format: 'json',
     v: '2.0',
     keywords: keyword,
     page_size: '4',
@@ -44,11 +49,7 @@ async function searchAliExpressProducts(keyword) {
   params.sign = signRequest(params);
 
   try {
-    const response = await axios.post(
-      API_URL,
-      new URLSearchParams(params).toString(),
-      { headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8' } }
-    );
+    const response = await axios.get(API_URL, { params });
     console.log('AliExpress full response:', JSON.stringify(response.data, null, 2));
     const result = response.data?.aliexpress_affiliate_product_query_response?.resp_result;
     if (result?.resp_code === 200) {
