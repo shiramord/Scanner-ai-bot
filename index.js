@@ -8,28 +8,28 @@ const APP_KEY = process.env.ALI_APP_KEY;
 const APP_SECRET = process.env.ALI_APP_SECRET;
 const TRACKING_ID = process.env.ALI_TRACKING_ID || 'default';
 
-// ✅ NEW CORRECT ENDPOINT
 const API_URL = 'https://api-sg.aliexpress.com/sync';
 
 const bot = new TelegramBot(token, { polling: true });
 
 // ─── SIGN FUNCTION ───────────────────────────────────────
 function signRequest(params) {
-  const sorted = Object.keys(params).sort().reduce((acc, key) => {
-    acc[key] = params[key];
-    return acc;
-  }, {});
-  const str = Object.keys(sorted).map(key => `${key}${sorted[key]}`).join('');
-  const toHash = `${APP_SECRET}${str}${APP_SECRET}`;
-  return crypto.createHash('md5').update(toHash, 'utf8').digest('hex').toUpperCase();
+  const sorted = Object.keys(params).sort();
+  const str = sorted.map(key => `${key}${params[key]}`).join('');
+  const toHash = APP_SECRET + str + APP_SECRET;
+  return crypto.createHmac('sha256', APP_SECRET)
+    .update(toHash)
+    .digest('hex')
+    .toUpperCase();
 }
 
+// ─── ALIEXPRESS SEARCH ───────────────────────────────────
 async function searchAliExpressProducts(keyword) {
   const timestamp = new Date().toISOString().replace('T', ' ').replace(/\..+/, '');
   const params = {
     method: 'aliexpress.affiliate.product.query',
     app_key: APP_KEY,
-    sign_method: 'md5',
+    sign_method: 'sha256',
     timestamp: timestamp,
     format: 'json',
     v: '2.0',
@@ -63,6 +63,7 @@ async function searchAliExpressProducts(keyword) {
   }
 }
 
+// ─── FORMAT PRODUCT ──────────────────────────────────────
 function formatProduct(product, index) {
   const name = product.product_title || 'מוצר';
   const price = product.target_sale_price ? `$${product.target_sale_price}` : 'לא זמין';
@@ -78,9 +79,11 @@ function formatProduct(product, index) {
   );
 }
 
+// ─── BOT MESSAGE HANDLER ─────────────────────────────────
 bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text;
+
   if (
     text &&
     (text.includes('מחפש') ||
@@ -90,21 +93,27 @@ bot.on('message', async (msg) => {
       text.includes('רוצה'))
   ) {
     const keyword = text.replace(/מחפש|חפש|חיפוש|מצא|רוצה/g, '').trim();
+
     if (!keyword) {
       bot.sendMessage(chatId, '❓ מה תרצה לחפש? לדוגמה: *חפש אוזניות סמסונג*', { parse_mode: 'Markdown' });
       return;
     }
+
     console.log(`Searching for: ${keyword}`);
     await bot.sendMessage(chatId, `🔍 מחפש לך *${keyword}*...`, { parse_mode: 'Markdown' });
+
     const products = await searchAliExpressProducts(keyword);
     console.log(`Found ${products.length} products`);
+
     if (!products.length) {
       bot.sendMessage(chatId, '😕 לא מצאתי תוצאות. נסה מילות חיפוש אחרות.');
       return;
     }
+
     const header = `🛍️ *מצאתי ${products.length} מוצרים עבור "${keyword}":*\n\n`;
     const body = products.slice(0, 4).map((p, i) => formatProduct(p, i + 1)).join('\n─────────────────\n\n');
     const footer = '\n\n✅ _כל הקישורים הם קישורי שותפים_';
+
     bot.sendMessage(chatId, header + body + footer, {
       parse_mode: 'Markdown',
       disable_web_page_preview: false,
