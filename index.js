@@ -11,6 +11,7 @@ const API_URL = 'http://gw.api.taobao.com/router/rest';
 
 const bot = new TelegramBot(token, { polling: true });
 
+// ─── SIGN FUNCTION (SHA256) ──────────────────────────────
 function signRequest(params) {
   const sorted = Object.keys(params).sort().reduce((acc, key) => {
     acc[key] = params[key];
@@ -18,7 +19,7 @@ function signRequest(params) {
   }, {});
   const str = Object.keys(sorted).map(key => `${key}${sorted[key]}`).join('');
   const toHash = `${APP_SECRET}${str}${APP_SECRET}`;
-  return crypto.createHash('md5').update(toHash, 'utf8').digest('hex').toUpperCase();
+  return crypto.createHmac('sha256', APP_SECRET).update(toHash, 'utf8').digest('hex').toUpperCase();
 }
 
 async function searchAliExpressProducts(keyword) {
