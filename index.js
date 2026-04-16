@@ -12,32 +12,37 @@ const API_URL = 'https://api-sg.aliexpress.com/sync';
 
 const bot = new TelegramBot(token, { polling: true });
 
-// ─── SIGN FUNCTION ───────────────────────────────────────
+// ─── SIGN FUNCTION (Official Algorithm) ─────────────────
 function signRequest(params) {
-  // Step 1: Sort keys alphabetically
+  // Step 1: Sort all params alphabetically by key
   const sortedKeys = Object.keys(params).sort();
 
-  // Step 2: Concatenate key+value (no separators, no = or &)
-  const str = sortedKeys.map(key => `${key}${params[key]}`).join('');
+  // Step 2: Concatenate key+value (no separators)
+  const str = sortedKeys
+    .filter(key => params[key] !== null && params[key] !== undefined && params[key] !== '')
+    .map(key => `${key}${params[key]}`)
+    .join('');
 
-  // Step 3: Wrap with secret on both sides
-  const toSign = `${APP_SECRET}${str}${APP_SECRET}`;
-
-  // Step 4: MD5 hash → uppercase
-  return crypto.createHash('md5').update(toSign, 'utf8').digest('hex').toUpperCase();
+  // Step 3: HMAC-SHA256 with APP_SECRET as key (Business Interface = NO api_path prefix)
+  return crypto
+    .createHmac('sha256', APP_SECRET)
+    .update(str, 'utf8')
+    .digest('hex')
+    .toUpperCase();
 }
 
 // ─── ALIEXPRESS SEARCH ───────────────────────────────────
 async function searchAliExpressProducts(keyword) {
-  
-  // ✅ Unix timestamp in SECONDS (not ms, not formatted string)
-  const timestamp = Math.floor(Date.now() / 1000);
+  const timestamp = new Date()
+    .toISOString()
+    .replace('T', ' ')
+    .replace(/\..+/, '');
 
   const params = {
     method: 'aliexpress.affiliate.product.query',
     app_key: APP_KEY,
-    sign_method: 'md5',
-    timestamp: String(timestamp),
+    sign_method: 'sha256',
+    timestamp: timestamp,
     format: 'json',
     v: '2.0',
     keywords: keyword,
