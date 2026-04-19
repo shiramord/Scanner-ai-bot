@@ -1,15 +1,13 @@
 {
   "name": "telegram-bot",
   "version": "1.0.0",
-  "description": "AliExpress finder bot",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
-    "node-telegram-bot-api": "^0.61.0",
-    "axios": "^1.6.0",
-    "dotenv": "^16.0.0"
+    "node-telegram-bot-api": "^0.64.0",
+    "dotenv": "^16.0.0",
+    "ae_sdk": "^0.6.0"
   }
 }
-
