@@ -12,39 +12,43 @@ const API_URL = 'https://api-sg.aliexpress.com/sync';
 
 const bot = new TelegramBot(token, { polling: true });
 
-// ─── SIGN FUNCTION (Official Algorithm) ─────────────────
+// ─── SIGN FUNCTION (copied from official ae_sdk) ─────────
 function signRequest(params) {
-  // Step 1: Sort all params alphabetically by key
-  const sortedKeys = Object.keys(params).sort();
+  const p = { ...params };
+  let basestring = '';
 
-  // Step 2: Concatenate key+value (no separators)
-  const str = sortedKeys
-    .filter(key => params[key] !== null && params[key] !== undefined && params[key] !== '')
-    .map(key => `${key}${params[key]}`)
-    .join('');
+  // If method contains "/" it's a System API — prepend it
+  // For Business APIs (like affiliate), method stays in params
+  if (typeof p.method === 'string' && p.method.includes('/')) {
+    basestring = p.method;
+    delete p.method;
+  }
 
-  // Step 3: HMAC-SHA256 with APP_SECRET as key (Business Interface = NO api_path prefix)
+  // Sort using localeCompare (official SDK method) + concatenate
+  basestring += Object.entries(p)
+    .filter(([_, value]) => value != null)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .reduce((acc, [key, value]) => acc + key + String(value), '');
+
+  // HMAC-SHA256 with app_secret as key
   return crypto
     .createHmac('sha256', APP_SECRET)
-    .update(str, 'utf8')
+    .update(basestring)
     .digest('hex')
     .toUpperCase();
 }
 
 // ─── ALIEXPRESS SEARCH ───────────────────────────────────
 async function searchAliExpressProducts(keyword) {
-  const timestamp = new Date()
-    .toISOString()
-    .replace('T', ' ')
-    .replace(/\..+/, '');
-
   const params = {
     method: 'aliexpress.affiliate.product.query',
     app_key: APP_KEY,
     sign_method: 'sha256',
-    timestamp: timestamp,
+    timestamp: Date.now(),     // ✅ milliseconds
+    simplify: true,            // ✅ from official SDK
     format: 'json',
     v: '2.0',
+    session: '',
     keywords: keyword,
     page_size: '4',
     sort: 'SALE_PRICE_ASC',
