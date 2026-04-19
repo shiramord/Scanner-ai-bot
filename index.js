@@ -1,77 +1,41 @@
 require('dotenv').config();
 const TelegramBot = require('node-telegram-bot-api');
-const crypto = require('crypto');
-const axios = require('axios');
+const { AffiliateClient } = require('ae_sdk');
 
 const token = process.env.BOT_TOKEN;
 const APP_KEY = process.env.ALI_APP_KEY;
 const APP_SECRET = process.env.ALI_APP_SECRET;
 const TRACKING_ID = process.env.ALI_TRACKING_ID || 'default';
 
-const API_URL = 'https://api-sg.aliexpress.com/sync';
-
 const bot = new TelegramBot(token, { polling: true });
 
-// ─── SIGN FUNCTION (copied from official ae_sdk) ─────────
-function signRequest(params) {
-  const p = { ...params };
-  let basestring = '';
-
-  // If method contains "/" it's a System API — prepend it
-  // For Business APIs (like affiliate), method stays in params
-  if (typeof p.method === 'string' && p.method.includes('/')) {
-    basestring = p.method;
-    delete p.method;
-  }
-
-  // Sort using localeCompare (official SDK method) + concatenate
-  basestring += Object.entries(p)
-    .filter(([_, value]) => value != null)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .reduce((acc, [key, value]) => acc + key + String(value), '');
-
-  // HMAC-SHA256 with app_secret as key
-  return crypto
-    .createHmac('sha256', APP_SECRET)
-    .update(basestring)
-    .digest('hex')
-    .toUpperCase();
-}
+// ✅ Official AliExpress SDK client
+const aliClient = new AffiliateClient({
+  app_key: APP_KEY,
+  app_secret: APP_SECRET,
+  session: '',
+});
 
 // ─── ALIEXPRESS SEARCH ───────────────────────────────────
 async function searchAliExpressProducts(keyword) {
-  const params = {
-    method: 'aliexpress.affiliate.product.query',
-    app_key: APP_KEY,
-    sign_method: 'sha256',
-    timestamp: Date.now(),     // ✅ milliseconds
-    simplify: true,            // ✅ from official SDK
-    format: 'json',
-    v: '2.0',
-    session: '',
-    keywords: keyword,
-    page_size: '4',
-    sort: 'SALE_PRICE_ASC',
-    tracking_id: TRACKING_ID,
-    target_currency: 'USD',
-    target_language: 'EN',
-    ship_to_country: 'IL',
-  };
-
-  params.sign = signRequest(params);
-
   try {
-    const response = await axios.post(
-      API_URL,
-      new URLSearchParams(params).toString(),
-      { headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8' } }
-    );
-    console.log('AliExpress full response:', JSON.stringify(response.data, null, 2));
-    const result = response.data?.aliexpress_affiliate_product_query_response?.resp_result;
-    if (result?.resp_code === 200) {
-      return result.result.products.product || [];
+    const response = await aliClient.queryProducts({
+      keywords: keyword,
+      page_size: 4,
+      sort: 'SALE_PRICE_ASC',
+      tracking_id: TRACKING_ID,
+      target_currency: 'USD',
+      target_language: 'EN',
+      ship_to_country: 'IL',
+    });
+
+    console.log('AliExpress response:', JSON.stringify(response, null, 2));
+
+    if (response.ok) {
+      const result = response.data?.aliexpress_affiliate_product_query_response?.resp_result;
+      return result?.result?.products?.product || [];
     } else {
-      console.error('AliExpress error:', JSON.stringify(response.data, null, 2));
+      console.error('AliExpress error:', response.message, response.error_response);
       return [];
     }
   } catch (err) {
